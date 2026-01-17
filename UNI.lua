@@ -75,37 +75,29 @@ function GetDistanceFromPlayer(v)
     return math.floor(math.sqrt(a) + 0.5)
 end
 
---// Draw skeleton - improved with both R6 and R15 support
+--// Draw skeleton with correct body part names from your game
 function DrawSkeleton(character, color)
-    -- Try R15 first (more common now)
+    -- Based on the explorer image you sent
     local connections = {
-        -- Head to torso
-        {"Head", "UpperTorso"},
-        -- Spine
-        {"UpperTorso", "LowerTorso"},
-        -- Left arm
-        {"UpperTorso", "LeftUpperArm"},
-        {"LeftUpperArm", "LeftLowerArm"},
-        {"LeftLowerArm", "LeftHand"},
-        -- Right arm
-        {"UpperTorso", "RightUpperArm"},
-        {"RightUpperArm", "RightLowerArm"},
-        {"RightLowerArm", "RightHand"},
-        -- Left leg
-        {"LowerTorso", "LeftUpperLeg"},
-        {"LeftUpperLeg", "LeftLowerLeg"},
-        {"LeftLowerLeg", "LeftFoot"},
-        -- Right leg
-        {"LowerTorso", "RightUpperLeg"},
-        {"RightUpperLeg", "RightLowerLeg"},
-        {"RightLowerLeg", "RightFoot"},
-        
-        -- R6 fallback
+        -- Head to neck/torso
         {"Head", "Torso"},
-        {"Torso", "Left Arm"},
-        {"Torso", "Right Arm"},
-        {"Torso", "Left Leg"},
-        {"Torso", "Right Leg"}
+        {"Head", "Neck"},
+        
+        -- Torso to shoulders
+        {"Torso", "Left Shoulder"},
+        {"Torso", "Right Shoulder"},
+        
+        -- Arms
+        {"Left Shoulder", "Left Arm"},
+        {"Right Shoulder", "Right Arm"},
+        
+        -- Torso to hips
+        {"Torso", "Left Hip"},
+        {"Torso", "Right Hip"},
+        
+        -- Legs
+        {"Left Hip", "Left Leg"},
+        {"Right Hip", "Right Leg"}
     }
     
     for _, connection in ipairs(connections) do
@@ -135,7 +127,7 @@ function BoxESP(params)
 
     if type(target) ~= "number" or dx9.GetChildren(target) == nil then return end
 
-    local hrp = dx9.FindFirstChild(target, "HumanoidRootPart") or dx9.FindFirstChild(target, "Torso") or dx9.FindFirstChild(target, "UpperTorso")
+    local hrp = dx9.FindFirstChild(target, "HumanoidRootPart") or dx9.FindFirstChild(target, "Torso")
     if not hrp then return end
 
     local torso = dx9.GetPosition(hrp)
