@@ -5,7 +5,7 @@ if not _G.NPCPath then
     _G.NPCPath = "Workspace.Entities" -- Default fallback
 end
 
---// Use the WORKING UI library from your script
+--// Use the WORKING UI library
 local Lib = loadstring(dx9.Get("https://raw.githubusercontent.com/soupg/DXLibUI/main/main.lua"))()
 
 local Window = Lib:CreateWindow({
@@ -23,8 +23,11 @@ local espEnabled = Groupbox1:AddToggle({Default = true, Text = "ESP Enabled"}):O
     Lib:Notify(value and "ESP Enabled" or "ESP Disabled", 1)
 end)
 
-local tracerEnabled = Groupbox1:AddToggle({Default = true, Text = "Tracers Enabled"})
-local healthbarEnabled = Groupbox1:AddToggle({Default = true, Text = "Health Bars"})
+local boxEnabled = Groupbox1:AddToggle({Default = true, Text = "Box ESP"})
+local box2D = Groupbox1:AddToggle({Default = false, Text = "2D Box (not corner)"})
+local skeletonEnabled = Groupbox1:AddToggle({Default = false, Text = "Skeleton ESP"})
+local tracerEnabled = Groupbox1:AddToggle({Default = true, Text = "Tracers"})
+local healthbarEnabled = Groupbox1:AddToggle({Default = true, Text = "Health Bar"})
 local healthtextEnabled = Groupbox1:AddToggle({Default = true, Text = "Health Text"})
 local dynamicHealthColor = Groupbox1:AddToggle({Default = true, Text = "Dynamic Health Color"})
 
@@ -72,11 +75,65 @@ function GetDistanceFromPlayer(v)
     return math.floor(math.sqrt(a) + 0.5)
 end
 
+--// Get skeleton joints
+function GetSkeletonJoints(character)
+    local joints = {}
+    
+    -- R15 skeleton connections
+    local connections = {
+        {"Head", "UpperTorso"},
+        {"UpperTorso", "LowerTorso"},
+        {"UpperTorso", "LeftUpperArm"},
+        {"LeftUpperArm", "LeftLowerArm"},
+        {"LeftLowerArm", "LeftHand"},
+        {"UpperTorso", "RightUpperArm"},
+        {"RightUpperArm", "RightLowerArm"},
+        {"RightLowerArm", "RightHand"},
+        {"LowerTorso", "LeftUpperLeg"},
+        {"LeftUpperLeg", "LeftLowerLeg"},
+        {"LeftLowerLeg", "LeftFoot"},
+        {"LowerTorso", "RightUpperLeg"},
+        {"RightUpperLeg", "RightLowerLeg"},
+        {"RightLowerLeg", "RightFoot"}
+    }
+    
+    for _, connection in ipairs(connections) do
+        local part1 = dx9.FindFirstChild(character, connection[1])
+        local part2 = dx9.FindFirstChild(character, connection[2])
+        
+        if part1 and part2 then
+            local pos1 = dx9.GetPosition(part1)
+            local pos2 = dx9.GetPosition(part2)
+            
+            if pos1 and pos2 then
+                table.insert(joints, {pos1, pos2})
+            end
+        end
+    end
+    
+    return joints
+end
+
+--// Draw skeleton
+function DrawSkeleton(character, color)
+    local joints = GetSkeletonJoints(character)
+    
+    for _, joint in ipairs(joints) do
+        local pos1 = joint[1]
+        local pos2 = joint[2]
+        
+        local screen1 = dx9.WorldToScreen({pos1.x, pos1.y, pos1.z})
+        local screen2 = dx9.WorldToScreen({pos2.x, pos2.y, pos2.z})
+        
+        if screen1 and screen2 and screen1.x > 0 and screen1.y > 0 and screen2.x > 0 and screen2.y > 0 then
+            dx9.DrawLine({screen1.x, screen1.y}, {screen2.x, screen2.y}, color, 2)
+        end
+    end
+end
+
 --// BoxESP
 function BoxESP(params)
     local target = params.Target
-    
-    -- Get color from picker (access .Value each time)
     local box_color = colorPicker.Value
 
     if type(target) ~= "number" or dx9.GetChildren(target) == nil then return end
@@ -100,19 +157,32 @@ function BoxESP(params)
     local height = Bottom.y - Top.y
     local width = height / 2.4
 
-    -- Corner box
-    local lines = {
-        {{Top.x - width, Top.y}, {Top.x - width + (width/2), Top.y}},
-        {{Top.x - width, Top.y}, {Top.x - width, Top.y + (height/4)}},
-        {{Top.x + width, Top.y}, {Top.x + width - (width/2), Top.y}},
-        {{Top.x + width, Top.y}, {Top.x + width, Top.y + (height/4)}},
-        {{Top.x - width, Bottom.y}, {Top.x - width + (width/2), Bottom.y}},
-        {{Top.x - width, Bottom.y}, {Top.x - width, Bottom.y - (height/4)}},
-        {{Top.x + width, Bottom.y}, {Top.x + width - (width/2), Bottom.y}},
-        {{Top.x + width, Bottom.y}, {Top.x + width, Bottom.y - (height/4)}}
-    }
-    for _, line in ipairs(lines) do
-        dx9.DrawLine(line[1], line[2], box_color)
+    -- Skeleton ESP
+    if skeletonEnabled.Value then
+        DrawSkeleton(target, box_color)
+    end
+
+    -- Box ESP
+    if boxEnabled.Value then
+        if box2D.Value then
+            -- Simple 2D box (full rectangle)
+            dx9.DrawBox({Top.x - width, Top.y}, {Top.x + width, Bottom.y}, box_color)
+        else
+            -- Corner box
+            local lines = {
+                {{Top.x - width, Top.y}, {Top.x - width + (width/2), Top.y}},
+                {{Top.x - width, Top.y}, {Top.x - width, Top.y + (height/4)}},
+                {{Top.x + width, Top.y}, {Top.x + width - (width/2), Top.y}},
+                {{Top.x + width, Top.y}, {Top.x + width, Top.y + (height/4)}},
+                {{Top.x - width, Bottom.y}, {Top.x - width + (width/2), Bottom.y}},
+                {{Top.x - width, Bottom.y}, {Top.x - width, Bottom.y - (height/4)}},
+                {{Top.x + width, Bottom.y}, {Top.x + width - (width/2), Bottom.y}},
+                {{Top.x + width, Bottom.y}, {Top.x + width, Bottom.y - (height/4)}}
+            }
+            for _, line in ipairs(lines) do
+                dx9.DrawLine(line[1], line[2], box_color)
+            end
+        end
     end
 
     -- Distance
@@ -124,65 +194,63 @@ function BoxESP(params)
     dx9.DrawString({Top.x - (dx9.CalcTextWidth(name) / 2), Top.y - 20}, box_color, name)
 
     -- Health
-    if healthbarEnabled.Value or healthtextEnabled.Value then
-        local humanoid = dx9.FindFirstChild(target, "Humanoid")
-        local hp = 100
-        local maxhp = 100
-        if humanoid then
-            hp = dx9.GetHealth(humanoid) or 100
-            maxhp = dx9.GetMaxHealth(humanoid) or 100
+    local humanoid = dx9.FindFirstChild(target, "Humanoid")
+    local hp = 100
+    local maxhp = 100
+    if humanoid then
+        hp = dx9.GetHealth(humanoid) or 100
+        maxhp = dx9.GetMaxHealth(humanoid) or 100
+    end
+
+    -- Health Text
+    if healthtextEnabled.Value then
+        local h_str = math.floor(hp) .. "/" .. math.floor(maxhp)
+        dx9.DrawString({Top.x - (dx9.CalcTextWidth(h_str) / 2), Top.y - 38}, box_color, h_str)
+    end
+
+    -- Health Bar (FIXED - draws from bottom up)
+    if healthbarEnabled.Value and maxhp > 0 then
+        local barWidth = 4
+        local barPadding = 2
+        local tl = {Top.x + width + barPadding, Top.y}
+        local br = {Top.x + width + barPadding + barWidth, Bottom.y}
+        
+        -- Calculate health percentage
+        local healthPercent = math.max(0, math.min(1, hp / maxhp))
+        
+        -- Determine fill color
+        local fill_color
+        if dynamicHealthColor.Value then
+            -- Dynamic: Red (low HP) to Green (high HP)
+            local red = math.floor(255 * (1 - healthPercent))
+            local green = math.floor(255 * healthPercent)
+            fill_color = {red, green, 0}
+        else
+            -- Use ESP color
+            fill_color = box_color
         end
-
-        -- Health Text
-        if healthtextEnabled.Value then
-            local h_str = math.floor(hp) .. "/" .. math.floor(maxhp)
-            dx9.DrawString({Top.x - (dx9.CalcTextWidth(h_str) / 2), Top.y - 38}, box_color, h_str)
-        end
-
-        -- Health Bar (RIGHT SIDE, VERTICAL)
-        if healthbarEnabled.Value then
-            local tl = {Top.x + width + 2, Top.y + 1}
-            local br = {Top.x + width + 6, Bottom.y - 1}
-
-            -- Outline (using ESP color)
-            dx9.DrawBox({tl[1] - 1, tl[2] - 1}, {br[1] + 1, br[2] + 1}, box_color)
-            
-            -- Black background
-            dx9.DrawFilledBox({tl[1], tl[2]}, {br[1], br[2]}, {0, 0, 0})
-
-            -- Health fill (from bottom to top based on percentage)
-            if maxhp > 0 then
-                local healthPercent = math.max(0, math.min(1, hp / maxhp)) -- Clamp between 0-1
-                local fill_height = (br[2] - tl[2]) * healthPercent
-                local fill_top = br[2] - fill_height
-
-                -- Determine fill color
-                local fill_color
-                if dynamicHealthColor.Value then
-                    -- Dynamic: Red (low HP) to Green (high HP)
-                    fill_color = {
-                        math.floor(255 * (1 - healthPercent)),  -- Red decreases as HP increases
-                        math.floor(255 * healthPercent),        -- Green increases as HP increases
-                        0
-                    }
-                else
-                    -- Use ESP color
-                    fill_color = box_color
-                end
-
-                -- Draw the filled bar (only if there's health)
-                if fill_height > 0 then
-                    dx9.DrawFilledBox({tl[1] + 1, fill_top}, {br[1] - 1, br[2]}, fill_color)
-                end
-            end
+        
+        -- Draw outline (white for visibility)
+        dx9.DrawBox({tl[1] - 1, tl[2] - 1}, {br[1] + 1, br[2] + 1}, {255, 255, 255})
+        
+        -- Draw black background
+        dx9.DrawFilledBox({tl[1], tl[2]}, {br[1], br[2]}, {0, 0, 0})
+        
+        -- Calculate fill from bottom up
+        local barHeight = br[2] - tl[2]
+        local fillHeight = barHeight * healthPercent
+        local fillTop = br[2] - fillHeight
+        
+        -- Draw health fill (only if there's health)
+        if fillHeight > 1 then
+            dx9.DrawFilledBox({tl[1], fillTop}, {br[1], br[2]}, fill_color)
         end
     end
 
     -- Tracer
     if tracerEnabled.Value then
         local screenCenterBottom = {dx9.size().width / 2, dx9.size().height}
-        local targetBottom = {Top.x, Bottom.y}
-        dx9.DrawLine(screenCenterBottom, targetBottom, box_color)
+        dx9.DrawLine(screenCenterBottom, {Top.x, Bottom.y}, box_color)
     end
 end
 
