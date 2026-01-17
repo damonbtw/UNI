@@ -75,29 +75,20 @@ function GetDistanceFromPlayer(v)
     return math.floor(math.sqrt(a) + 0.5)
 end
 
---// Draw skeleton with correct body part names from your game
+--// Draw skeleton - ONLY using parts that exist from your explorer
 function DrawSkeleton(character, color)
-    -- Based on the explorer image you sent
+    -- Based exactly on what you showed in the explorer
     local connections = {
-        -- Head to neck/torso
+        -- Spine
         {"Head", "Torso"},
-        {"Head", "Neck"},
-        
-        -- Torso to shoulders
-        {"Torso", "Left Shoulder"},
-        {"Torso", "Right Shoulder"},
         
         -- Arms
-        {"Left Shoulder", "Left Arm"},
-        {"Right Shoulder", "Right Arm"},
-        
-        -- Torso to hips
-        {"Torso", "Left Hip"},
-        {"Torso", "Right Hip"},
+        {"Torso", "Left Arm"},
+        {"Torso", "Right Arm"},
         
         -- Legs
-        {"Left Hip", "Left Leg"},
-        {"Right Hip", "Right Leg"}
+        {"Torso", "Left Leg"},
+        {"Torso", "Right Leg"}
     }
     
     for _, connection in ipairs(connections) do
