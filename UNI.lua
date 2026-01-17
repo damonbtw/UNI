@@ -1,12 +1,16 @@
-dx9.ShowConsole(false)
+dx9.ShowConsole(true) -- Enable console for debugging
 
 --// Check if NPC path is provided
 if not _G.NPCPath then
     _G.NPCPath = "Workspace.Entities" -- Default fallback
 end
 
+print("=== Universal ESP Starting ===")
+print("NPC Path:", _G.NPCPath)
+
 --// Load UI Library
 local Lib = loadstring(dx9.Get("https://raw.githubusercontent.com/damonbtw/UI/main/UI.lua"))()
+print("UI Library loaded")
 
 --// Create Window
 local Window = Lib:CreateWindow({
@@ -14,6 +18,7 @@ local Window = Lib:CreateWindow({
     Size = {550, 450},
     Position = {100, 100}
 })
+print("Window created")
 
 --// Create Tabs
 local ESPTab = Window:AddTab("ESP")
@@ -55,12 +60,6 @@ local SpeedValue = MiscGroup:AddSlider({Text = "Speed Multiplier", Default = 2, 
 local SpeedRampUp = MiscGroup:AddToggle({Default = true, Text = "Gradual Speed Ramp"})
 local RampSpeed = MiscGroup:AddSlider({Text = "Ramp Speed", Default = 0.05, Min = 0.01, Max = 0.2, Rounding = 2})
 
-local MiscInfo = MiscTab:AddRightGroupbox("Info")
-MiscInfo:AddLabel("Speed Hack Info:")
-MiscInfo:AddLabel("- Toggle to enable")
-MiscInfo:AddLabel("- Gradual ramp = smooth")
-MiscInfo:AddLabel("- Instant = immediate speed")
-
 --// Settings Tab
 local SettingsGroup = SettingsTab:AddLeftGroupbox("Menu Settings")
 
@@ -69,16 +68,14 @@ local MenuAccentPicker = SettingsGroup:AddLabel("Menu Accent Color"):AddColorPic
     Title = "Menu Accent"
 })
 
-local SettingsInfo = SettingsTab:AddRightGroupbox("Information")
-SettingsInfo:AddLabel("Universal ESP v1.0")
-SettingsInfo:AddLabel("Made by @crossmyheart0551")
-SettingsInfo:AddLabel("")
-SettingsInfo:AddLabel("Set _G.NPCPath before loading:")
-SettingsInfo:AddLabel('_G.NPCPath = "Workspace.Entities"')
+print("GUI setup complete")
 
 --// Get references
 local datamodel = dx9.GetDatamodel()
 local workspace = dx9.FindFirstChild(datamodel, "Workspace")
+
+print("Datamodel:", datamodel)
+print("Workspace:", workspace)
 
 --// Distance calculation
 function GetDistanceFromPlayer(pos)
@@ -137,61 +134,6 @@ function GetESPColor()
     end
 end
 
---// Get skeleton joints for drawing
-function GetSkeletonJoints(character)
-    local joints = {}
-    
-    local connections = {
-        {"Head", "UpperTorso"},
-        {"UpperTorso", "LowerTorso"},
-        {"UpperTorso", "LeftUpperArm"},
-        {"LeftUpperArm", "LeftLowerArm"},
-        {"LeftLowerArm", "LeftHand"},
-        {"UpperTorso", "RightUpperArm"},
-        {"RightUpperArm", "RightLowerArm"},
-        {"RightLowerArm", "RightHand"},
-        {"LowerTorso", "LeftUpperLeg"},
-        {"LeftUpperLeg", "LeftLowerLeg"},
-        {"LeftLowerLeg", "LeftFoot"},
-        {"LowerTorso", "RightUpperLeg"},
-        {"RightUpperLeg", "RightLowerLeg"},
-        {"RightLowerLeg", "RightFoot"}
-    }
-    
-    for _, connection in ipairs(connections) do
-        local part1 = dx9.FindFirstChild(character, connection[1])
-        local part2 = dx9.FindFirstChild(character, connection[2])
-        
-        if part1 and part2 then
-            local pos1 = dx9.GetPosition(part1)
-            local pos2 = dx9.GetPosition(part2)
-            
-            if pos1 and pos2 then
-                table.insert(joints, {pos1, pos2})
-            end
-        end
-    end
-    
-    return joints
-end
-
---// Draw skeleton
-function DrawSkeleton(character, color)
-    local joints = GetSkeletonJoints(character)
-    
-    for _, joint in ipairs(joints) do
-        local pos1 = joint[1]
-        local pos2 = joint[2]
-        
-        local screen1 = dx9.WorldToScreen({pos1.x, pos1.y, pos1.z})
-        local screen2 = dx9.WorldToScreen({pos2.x, pos2.y, pos2.z})
-        
-        if screen1 and screen2 and screen1.x > 0 and screen1.y > 0 and screen2.x > 0 and screen2.y > 0 then
-            dx9.DrawLine({screen1.x, screen1.y}, {screen2.x, screen2.y}, color)
-        end
-    end
-end
-
 --// Draw corner box
 function DrawCornerBox(Top, Bottom, width, height, color)
     local lines = {
@@ -233,11 +175,6 @@ function DrawNPCESP(npc, name)
     
     local height = Bottom.y - Top.y
     local width = height / 2.4
-    
-    -- Skeleton ESP
-    if SkeletonESP.Value then
-        DrawSkeleton(npc, color)
-    end
     
     -- Box ESP
     if BoxESP.Value then
@@ -315,78 +252,33 @@ end
 --// Speed hack variables
 local currentSpeedMultiplier = 1
 local normalSpeed = 16
-local humanoidCache = {}
-
---// Get player's humanoid
-function GetLocalHumanoid()
-    local lp = dx9.get_localplayer()
-    if not lp then return nil end
-    
-    if humanoidCache.humanoid and humanoidCache.lastCheck and (os.clock() - humanoidCache.lastCheck) < 1 then
-        return humanoidCache.humanoid
-    end
-    
-    local playerName = dx9.GetName(lp)
-    if not playerName then return nil end
-    
-    local character = dx9.FindFirstChild(workspace, playerName)
-    if not character then return nil end
-    
-    local humanoid = dx9.FindFirstChild(character, "Humanoid")
-    if humanoid then
-        humanoidCache.humanoid = humanoid
-        humanoidCache.lastCheck = os.clock()
-        return humanoid
-    end
-    
-    return nil
-end
-
---// Speed hack updater
-coroutine.wrap(function()
-    while true do
-        if SpeedHackEnabled.Value then
-            local targetSpeed = SpeedValue.Value
-            
-            if SpeedRampUp.Value then
-                local rampAmount = RampSpeed.Value
-                if currentSpeedMultiplier < targetSpeed then
-                    currentSpeedMultiplier = math.min(currentSpeedMultiplier + rampAmount, targetSpeed)
-                elseif currentSpeedMultiplier > targetSpeed then
-                    currentSpeedMultiplier = math.max(currentSpeedMultiplier - rampAmount, targetSpeed)
-                end
-            else
-                currentSpeedMultiplier = targetSpeed
-            end
-            
-            local humanoid = GetLocalHumanoid()
-            if humanoid then
-                pcall(function()
-                    dx9.SetProperty(humanoid, "WalkSpeed", normalSpeed * currentSpeedMultiplier)
-                end)
-            end
-        else
-            currentSpeedMultiplier = 1
-            local humanoid = GetLocalHumanoid()
-            if humanoid then
-                pcall(function()
-                    dx9.SetProperty(humanoid, "WalkSpeed", normalSpeed)
-                end)
-            end
-        end
-        
-        dx9.Sleep(50)
-    end
-end)()
 
 --// Main ESP Loop
+print("Starting ESP loop...")
 coroutine.wrap(function()
+    local loopCount = 0
     while true do
+        loopCount = loopCount + 1
+        
+        -- Debug every 100 loops
+        if loopCount % 100 == 0 then
+            print("ESP Loop running:", loopCount, "ESP Enabled:", ESPEnabled.Value)
+        end
+        
         if ESPEnabled.Value then
             local npcFolder = GetObjectFromPath(_G.NPCPath)
             
+            if loopCount == 1 then
+                print("NPC Folder pointer:", npcFolder)
+            end
+            
             if npcFolder then
                 local npcs = dx9.GetChildren(npcFolder)
+                
+                if loopCount == 1 then
+                    print("NPCs found:", npcs and #npcs or 0)
+                end
+                
                 if npcs then
                     for _, npc in ipairs(npcs) do
                         local npcName = dx9.GetName(npc)
@@ -395,9 +287,15 @@ coroutine.wrap(function()
                         end
                     end
                 end
+            else
+                if loopCount % 100 == 0 then
+                    print("WARNING: NPC folder not found at path:", _G.NPCPath)
+                end
             end
         end
         
         dx9.Sleep(0)
     end
 end)()
+
+print("=== ESP fully loaded ===")
