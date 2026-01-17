@@ -28,27 +28,63 @@ local BoxESP = ESPGroup:AddToggle({Default = true, Text = "Box ESP"})
 local SkeletonESP = ESPGroup:AddToggle({Default = false, Text = "Skeleton ESP"})
 local NameESP = ESPGroup:AddToggle({Default = true, Text = "Name ESP"})
 local DistanceESP = ESPGroup:AddToggle({Default = true, Text = "Distance ESP"})
+local TracerESP = ESPGroup:AddToggle({Default = false, Text = "Tracer ESP"})
 
-ESPGroup:AddLabel(""):AddColorPicker("ESPColor", {Default = {r = 255, g = 100, b = 100}})
+--// ESP Color Picker
+local ESPColorPicker = ESPGroup:AddLabel("ESP Color"):AddColorPicker("ESPColor", {
+    Default = Color3.fromRGB(255, 100, 100),
+    Title = "ESP Color"
+})
+
 ESPGroup:AddLabel("Current Path: " .. _G.NPCPath)
 
 --// ESP Tab - Right Side
 local ESPSettings = ESPTab:AddRightGroupbox("ESP Options")
 
 local MaxDistance = ESPSettings:AddSlider({Text = "Max Distance", Default = 5000, Min = 100, Max = 10000, Suffix = " studs"})
+local ESPThickness = ESPSettings:AddSlider({Text = "Box Thickness", Default = 2, Min = 1, Max = 5})
 
 --// Misc Tab
-local MiscGroup = MiscTab:AddLeftGroupbox("Misc Features")
+local MiscGroup = MiscTab:AddLeftGroupbox("Movement")
 
 local SpeedHackEnabled = MiscGroup:AddToggle({Default = false, Text = "Speed Hack"})
-local SpeedValue = MiscGroup:AddSlider({Text = "Speed Multiplier", Default = 1.5, Min = 1, Max = 5, Rounding = 1})
+local SpeedValue = MiscGroup:AddSlider({Text = "Speed Multiplier", Default = 2, Min = 1, Max = 5, Rounding = 1})
 local SpeedRampUp = MiscGroup:AddToggle({Default = true, Text = "Gradual Speed Ramp"})
-local RampSpeed = MiscGroup:AddSlider({Text = "Ramp Speed", Default = 0.1, Min = 0.01, Max = 0.5, Rounding = 2})
+local RampSpeed = MiscGroup:AddSlider({Text = "Ramp Speed", Default = 0.05, Min = 0.01, Max = 0.2, Rounding = 2})
+
+local MiscInfo = MiscTab:AddRightGroupbox("Info")
+MiscInfo:AddLabel("Speed Hack Info:")
+MiscInfo:AddLabel("- Toggle to enable")
+MiscInfo:AddLabel("- Gradual ramp = smooth acceleration")
+MiscInfo:AddLabel("- Instant = immediate speed")
 
 --// Settings Tab
 local SettingsGroup = SettingsTab:AddLeftGroupbox("Menu Settings")
 
-SettingsGroup:AddLabel("Menu Accent Color"):AddColorPicker("MenuAccent", {Default = {r = 100, g = 150, b = 255}})
+local MenuAccentPicker = SettingsGroup:AddLabel("Menu Accent Color"):AddColorPicker("MenuAccent", {
+    Default = Color3.fromRGB(100, 150, 255),
+    Title = "Menu Accent Color"
+})
+
+SettingsGroup:AddButton({
+    Text = "Apply Accent Color",
+    Func = function()
+        local color = MenuAccentPicker.Value
+        if Window and Window.SetAccent then
+            Window:SetAccent(color)
+        end
+    end
+})
+
+local SettingsInfo = SettingsTab:AddRightGroupbox("Information")
+SettingsInfo:AddLabel("Universal ESP v1.0")
+SettingsInfo:AddLabel("Made by @crossmyheart0551")
+SettingsInfo:AddLabel("")
+SettingsInfo:AddLabel("To use:")
+SettingsInfo:AddLabel("1. Set _G.NPCPath to your game's")
+SettingsInfo:AddLabel("   NPC folder path")
+SettingsInfo:AddLabel("2. Enable ESP")
+SettingsInfo:AddLabel("3. Customize settings")
 
 --// Get references
 local datamodel = dx9.GetDatamodel()
@@ -95,6 +131,21 @@ function GetObjectFromPath(pathString)
     end
     
     return current
+end
+
+--// Get color from color picker
+function GetESPColor()
+    local colorValue = ESPColorPicker.Value
+    if type(colorValue) == "table" then
+        return {
+            colorValue.r and (colorValue.r * 255) or 255,
+            colorValue.g and (colorValue.g * 255) or 100,
+            colorValue.b and (colorValue.b * 255) or 100
+        }
+    else
+        -- Fallback
+        return {255, 100, 100}
+    end
 end
 
 --// Get skeleton joints for drawing
@@ -148,7 +199,7 @@ function DrawSkeleton(character, color)
         local screen2 = dx9.WorldToScreen({pos2.x, pos2.y, pos2.z})
         
         if screen1 and screen2 and screen1.x > 0 and screen1.y > 0 and screen2.x > 0 and screen2.y > 0 then
-            dx9.DrawLine({screen1.x, screen1.y}, {screen2.x, screen2.y}, color)
+            dx9.DrawLine({screen1.x, screen1.y}, {screen2.x, screen2.y}, color, 2)
         end
     end
 end
@@ -166,11 +217,17 @@ function DrawNPCESP(npc, name)
     local dist = GetDistanceFromPlayer(pos)
     if dist > MaxDistance.Value then return end
     
-    local color = {
-        ESPGroup.ESPColor.Value.r * 255,
-        ESPGroup.ESPColor.Value.g * 255,
-        ESPGroup.ESPColor.Value.b * 255
-    }
+    local color = GetESPColor()
+    
+    local HeadPosY = pos.y + 3
+    local LegPosY = pos.y - 3.5
+    local Top = dx9.WorldToScreen({pos.x, HeadPosY, pos.z})
+    local Bottom = dx9.WorldToScreen({pos.x, LegPosY, pos.z})
+    
+    if not (Top and Bottom and Top.x > 0 and Top.y > 0 and Bottom.y > Top.y) then return end
+    
+    local height = Bottom.y - Top.y
+    local width = height / 2.4
     
     -- Skeleton ESP
     if SkeletonESP.Value then
@@ -179,83 +236,100 @@ function DrawNPCESP(npc, name)
     
     -- Box ESP
     if BoxESP.Value then
-        local HeadPosY = pos.y + 3
-        local LegPosY = pos.y - 3.5
-        local Top = dx9.WorldToScreen({pos.x, HeadPosY, pos.z})
-        local Bottom = dx9.WorldToScreen({pos.x, LegPosY, pos.z})
-        
-        if Top and Bottom and Top.x > 0 and Top.y > 0 and Bottom.y > Top.y then
-            local height = Bottom.y - Top.y
-            local width = height / 2.4
-            
-            dx9.DrawBox({Top.x - width, Top.y}, {Top.x + width, Bottom.y}, color)
-            
-            -- Name
-            if NameESP.Value then
-                dx9.DrawString({Top.x - (dx9.CalcTextWidth(name) / 2), Top.y - 20}, color, name)
-            end
-            
-            -- Distance
-            if DistanceESP.Value then
-                local dist_str = tostring(dist) .. "m"
-                dx9.DrawString({Bottom.x - (dx9.CalcTextWidth(dist_str) / 2), Bottom.y + 4}, color, dist_str)
-            end
+        dx9.DrawBox({Top.x - width, Top.y}, {Top.x + width, Bottom.y}, color, ESPThickness.Value or 2)
+    end
+    
+    -- Tracer ESP
+    if TracerESP.Value then
+        local lp = dx9.get_localplayer()
+        if lp then
+            local screenCenter = {dx9.GetScreenSize()[1] / 2, dx9.GetScreenSize()[2]}
+            dx9.DrawLine(screenCenter, {Bottom.x, Bottom.y}, color, 1)
         end
+    end
+    
+    -- Name
+    if NameESP.Value then
+        dx9.DrawString({Top.x - (dx9.CalcTextWidth(name) / 2), Top.y - 20}, color, name)
+    end
+    
+    -- Distance
+    if DistanceESP.Value then
+        local dist_str = tostring(dist) .. "m"
+        dx9.DrawString({Bottom.x - (dx9.CalcTextWidth(dist_str) / 2), Bottom.y + 4}, color, dist_str)
     end
 end
 
 --// Speed hack variables
 local currentSpeedMultiplier = 1
-local targetSpeedMultiplier = 1
-local baseWalkSpeed = 16 -- Default Roblox walk speed
+local normalSpeed = 16
+local humanoidCache = {}
+
+--// Get player's humanoid
+function GetLocalHumanoid()
+    local lp = dx9.get_localplayer()
+    if not lp then return nil end
+    
+    -- Try to get from cache first
+    if humanoidCache.humanoid and humanoidCache.lastCheck and (os.clock() - humanoidCache.lastCheck) < 1 then
+        return humanoidCache.humanoid
+    end
+    
+    -- Find character in workspace
+    local playerName = dx9.GetName(lp)
+    if not playerName then return nil end
+    
+    local character = dx9.FindFirstChild(workspace, playerName)
+    if not character then return nil end
+    
+    local humanoid = dx9.FindFirstChild(character, "Humanoid")
+    if humanoid then
+        humanoidCache.humanoid = humanoid
+        humanoidCache.lastCheck = os.clock()
+        return humanoid
+    end
+    
+    return nil
+end
 
 --// Speed hack updater
 coroutine.wrap(function()
     while true do
         if SpeedHackEnabled.Value then
-            targetSpeedMultiplier = SpeedValue.Value
+            local targetSpeed = SpeedValue.Value
             
             if SpeedRampUp.Value then
-                -- Gradually ramp up/down speed
-                if currentSpeedMultiplier < targetSpeedMultiplier then
-                    currentSpeedMultiplier = currentSpeedMultiplier + RampSpeed.Value
-                    if currentSpeedMultiplier > targetSpeedMultiplier then
-                        currentSpeedMultiplier = targetSpeedMultiplier
-                    end
-                elseif currentSpeedMultiplier > targetSpeedMultiplier then
-                    currentSpeedMultiplier = currentSpeedMultiplier - RampSpeed.Value
-                    if currentSpeedMultiplier < targetSpeedMultiplier then
-                        currentSpeedMultiplier = targetSpeedMultiplier
-                    end
+                -- Gradually ramp speed
+                local rampAmount = RampSpeed.Value
+                if currentSpeedMultiplier < targetSpeed then
+                    currentSpeedMultiplier = math.min(currentSpeedMultiplier + rampAmount, targetSpeed)
+                elseif currentSpeedMultiplier > targetSpeed then
+                    currentSpeedMultiplier = math.max(currentSpeedMultiplier - rampAmount, targetSpeed)
                 end
             else
-                -- Instant speed
-                currentSpeedMultiplier = targetSpeedMultiplier
+                currentSpeedMultiplier = targetSpeed
             end
             
-            -- Apply speed (this part depends on dx9 API - adjust as needed)
-            local lp = dx9.get_localplayer()
-            if lp then
-                -- Try to modify walk speed if possible
-                -- Note: This may need adjustment based on dx9 capabilities
-                -- For now, this is a placeholder that you may need to modify
+            -- Apply speed using dx9 API
+            local humanoid = GetLocalHumanoid()
+            if humanoid then
                 pcall(function()
-                    local character = dx9.GetCharacter(lp)
-                    if character then
-                        local humanoid = dx9.FindFirstChild(character, "Humanoid")
-                        if humanoid then
-                            -- Attempt to set walk speed
-                            -- This may require a different method depending on dx9
-                        end
-                    end
+                    -- Try to set WalkSpeed property
+                    dx9.SetProperty(humanoid, "WalkSpeed", normalSpeed * currentSpeedMultiplier)
                 end)
             end
         else
-            -- Reset to normal speed
+            -- Reset speed
             currentSpeedMultiplier = 1
+            local humanoid = GetLocalHumanoid()
+            if humanoid then
+                pcall(function()
+                    dx9.SetProperty(humanoid, "WalkSpeed", normalSpeed)
+                end)
+            end
         end
         
-        dx9.Sleep(50) -- Update every 50ms
+        dx9.Sleep(50)
     end
 end)()
 
