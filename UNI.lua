@@ -2,7 +2,7 @@ dx9.ShowConsole(false)
 
 --// Check if NPC path is provided
 if not _G.NPCPath then
-    _G.NPCPath = "Workspace.NPCs" -- Default fallback
+    _G.NPCPath = "Workspace.Entities" -- Default fallback
 end
 
 --// Load UI Library
@@ -28,7 +28,9 @@ local BoxESP = ESPGroup:AddToggle({Default = true, Text = "Box ESP"})
 local SkeletonESP = ESPGroup:AddToggle({Default = false, Text = "Skeleton ESP"})
 local NameESP = ESPGroup:AddToggle({Default = true, Text = "Name ESP"})
 local DistanceESP = ESPGroup:AddToggle({Default = true, Text = "Distance ESP"})
-local TracerESP = ESPGroup:AddToggle({Default = false, Text = "Tracer ESP"})
+local TracerESP = ESPGroup:AddToggle({Default = true, Text = "Tracer ESP"})
+local HealthBarESP = ESPGroup:AddToggle({Default = true, Text = "Health Bar"})
+local HealthTextESP = ESPGroup:AddToggle({Default = true, Text = "Health Text"})
 
 --// ESP Color Picker
 local ESPColorPicker = ESPGroup:AddLabel("ESP Color"):AddColorPicker("ESPColor", {
@@ -42,7 +44,8 @@ ESPGroup:AddLabel("Current Path: " .. _G.NPCPath)
 local ESPSettings = ESPTab:AddRightGroupbox("ESP Options")
 
 local MaxDistance = ESPSettings:AddSlider({Text = "Max Distance", Default = 5000, Min = 100, Max = 10000, Suffix = " studs"})
-local ESPThickness = ESPSettings:AddSlider({Text = "Box Thickness", Default = 2, Min = 1, Max = 5})
+local DynamicHealthColor = ESPSettings:AddToggle({Default = true, Text = "Dynamic Health Color"})
+local CornerBox = ESPSettings:AddToggle({Default = true, Text = "Corner Box Style"})
 
 --// Misc Tab
 local MiscGroup = MiscTab:AddLeftGroupbox("Movement")
@@ -55,7 +58,7 @@ local RampSpeed = MiscGroup:AddSlider({Text = "Ramp Speed", Default = 0.05, Min 
 local MiscInfo = MiscTab:AddRightGroupbox("Info")
 MiscInfo:AddLabel("Speed Hack Info:")
 MiscInfo:AddLabel("- Toggle to enable")
-MiscInfo:AddLabel("- Gradual ramp = smooth acceleration")
+MiscInfo:AddLabel("- Gradual ramp = smooth")
 MiscInfo:AddLabel("- Instant = immediate speed")
 
 --// Settings Tab
@@ -63,28 +66,15 @@ local SettingsGroup = SettingsTab:AddLeftGroupbox("Menu Settings")
 
 local MenuAccentPicker = SettingsGroup:AddLabel("Menu Accent Color"):AddColorPicker("MenuAccent", {
     Default = Color3.fromRGB(100, 150, 255),
-    Title = "Menu Accent Color"
-})
-
-SettingsGroup:AddButton({
-    Text = "Apply Accent Color",
-    Func = function()
-        local color = MenuAccentPicker.Value
-        if Window and Window.SetAccent then
-            Window:SetAccent(color)
-        end
-    end
+    Title = "Menu Accent"
 })
 
 local SettingsInfo = SettingsTab:AddRightGroupbox("Information")
 SettingsInfo:AddLabel("Universal ESP v1.0")
 SettingsInfo:AddLabel("Made by @crossmyheart0551")
 SettingsInfo:AddLabel("")
-SettingsInfo:AddLabel("To use:")
-SettingsInfo:AddLabel("1. Set _G.NPCPath to your game's")
-SettingsInfo:AddLabel("   NPC folder path")
-SettingsInfo:AddLabel("2. Enable ESP")
-SettingsInfo:AddLabel("3. Customize settings")
+SettingsInfo:AddLabel("Set _G.NPCPath before loading:")
+SettingsInfo:AddLabel('_G.NPCPath = "Workspace.Entities"')
 
 --// Get references
 local datamodel = dx9.GetDatamodel()
@@ -136,14 +126,13 @@ end
 --// Get color from color picker
 function GetESPColor()
     local colorValue = ESPColorPicker.Value
-    if type(colorValue) == "table" then
+    if type(colorValue) == "table" and colorValue.r then
         return {
-            colorValue.r and (colorValue.r * 255) or 255,
-            colorValue.g and (colorValue.g * 255) or 100,
-            colorValue.b and (colorValue.b * 255) or 100
+            math.floor(colorValue.r * 255),
+            math.floor(colorValue.g * 255),
+            math.floor(colorValue.b * 255)
         }
     else
-        -- Fallback
         return {255, 100, 100}
     end
 end
@@ -152,7 +141,6 @@ end
 function GetSkeletonJoints(character)
     local joints = {}
     
-    -- Define skeleton connections (from -> to)
     local connections = {
         {"Head", "UpperTorso"},
         {"UpperTorso", "LowerTorso"},
@@ -199,8 +187,25 @@ function DrawSkeleton(character, color)
         local screen2 = dx9.WorldToScreen({pos2.x, pos2.y, pos2.z})
         
         if screen1 and screen2 and screen1.x > 0 and screen1.y > 0 and screen2.x > 0 and screen2.y > 0 then
-            dx9.DrawLine({screen1.x, screen1.y}, {screen2.x, screen2.y}, color, 2)
+            dx9.DrawLine({screen1.x, screen1.y}, {screen2.x, screen2.y}, color)
         end
+    end
+end
+
+--// Draw corner box
+function DrawCornerBox(Top, Bottom, width, height, color)
+    local lines = {
+        {{Top.x - width, Top.y}, {Top.x - width + (width/2), Top.y}},
+        {{Top.x - width, Top.y}, {Top.x - width, Top.y + (height/4)}},
+        {{Top.x + width, Top.y}, {Top.x + width - (width/2), Top.y}},
+        {{Top.x + width, Top.y}, {Top.x + width, Top.y + (height/4)}},
+        {{Top.x - width, Bottom.y}, {Top.x - width + (width/2), Bottom.y}},
+        {{Top.x - width, Bottom.y}, {Top.x - width, Bottom.y - (height/4)}},
+        {{Top.x + width, Bottom.y}, {Top.x + width - (width/2), Bottom.y}},
+        {{Top.x + width, Bottom.y}, {Top.x + width, Bottom.y - (height/4)}}
+    }
+    for _, line in ipairs(lines) do
+        dx9.DrawLine(line[1], line[2], color)
     end
 end
 
@@ -208,7 +213,7 @@ end
 function DrawNPCESP(npc, name)
     if type(npc) ~= "number" then return end
     
-    local hrp = dx9.FindFirstChild(npc, "HumanoidRootPart")
+    local hrp = dx9.FindFirstChild(npc, "HumanoidRootPart") or dx9.FindFirstChild(npc, "Torso") or dx9.FindFirstChild(npc, "UpperTorso")
     if not hrp then return end
     
     local pos = dx9.GetPosition(hrp)
@@ -236,16 +241,63 @@ function DrawNPCESP(npc, name)
     
     -- Box ESP
     if BoxESP.Value then
-        dx9.DrawBox({Top.x - width, Top.y}, {Top.x + width, Bottom.y}, color, ESPThickness.Value or 2)
+        if CornerBox.Value then
+            DrawCornerBox(Top, Bottom, width, height, color)
+        else
+            dx9.DrawBox({Top.x - width, Top.y}, {Top.x + width, Bottom.y}, color)
+        end
+    end
+    
+    -- Health Bar (right side, vertical)
+    if HealthBarESP.Value then
+        local humanoid = dx9.FindFirstChild(npc, "Humanoid")
+        local hp = 100
+        local maxhp = 100
+        
+        if humanoid then
+            hp = dx9.GetHealth(humanoid) or 100
+            maxhp = dx9.GetMaxHealth(humanoid) or 100
+        end
+        
+        local tl = {Top.x + width + 2, Top.y + 1}
+        local br = {Top.x + width + 6, Bottom.y - 1}
+        
+        -- Outline
+        dx9.DrawBox({tl[1] - 1, tl[2] - 1}, {br[1] + 1, br[2] + 1}, color)
+        
+        -- Black background
+        dx9.DrawFilledBox({tl[1], tl[2]}, {br[1], br[2]}, {0, 0, 0})
+        
+        -- Health fill
+        if maxhp > 0 then
+            local healthPercent = math.min(math.max(hp / maxhp, 0), 1)
+            local fill_height = (br[2] - tl[2]) * healthPercent
+            local fill_top = br[2] - fill_height
+            
+            local fill_color = color
+            if DynamicHealthColor.Value then
+                fill_color = {
+                    math.floor(255 * (1 - healthPercent)),
+                    math.floor(255 * healthPercent),
+                    0
+                }
+            end
+            
+            dx9.DrawFilledBox({tl[1] + 1, fill_top}, {br[1] - 1, br[2]}, fill_color)
+        end
+        
+        -- Health text
+        if HealthTextESP.Value and humanoid then
+            local h_str = math.floor(hp) .. "/" .. math.floor(maxhp)
+            dx9.DrawString({Top.x - (dx9.CalcTextWidth(h_str) / 2), Top.y - 38}, color, h_str)
+        end
     end
     
     -- Tracer ESP
     if TracerESP.Value then
-        local lp = dx9.get_localplayer()
-        if lp then
-            local screenCenter = {dx9.GetScreenSize()[1] / 2, dx9.GetScreenSize()[2]}
-            dx9.DrawLine(screenCenter, {Bottom.x, Bottom.y}, color, 1)
-        end
+        local screenSize = dx9.size()
+        local screenCenterBottom = {screenSize.width / 2, screenSize.height}
+        dx9.DrawLine(screenCenterBottom, {Top.x, Bottom.y}, color)
     end
     
     -- Name
@@ -255,7 +307,7 @@ function DrawNPCESP(npc, name)
     
     -- Distance
     if DistanceESP.Value then
-        local dist_str = tostring(dist) .. "m"
+        local dist_str = tostring(dist) .. " studs"
         dx9.DrawString({Bottom.x - (dx9.CalcTextWidth(dist_str) / 2), Bottom.y + 4}, color, dist_str)
     end
 end
@@ -270,12 +322,10 @@ function GetLocalHumanoid()
     local lp = dx9.get_localplayer()
     if not lp then return nil end
     
-    -- Try to get from cache first
     if humanoidCache.humanoid and humanoidCache.lastCheck and (os.clock() - humanoidCache.lastCheck) < 1 then
         return humanoidCache.humanoid
     end
     
-    -- Find character in workspace
     local playerName = dx9.GetName(lp)
     if not playerName then return nil end
     
@@ -299,7 +349,6 @@ coroutine.wrap(function()
             local targetSpeed = SpeedValue.Value
             
             if SpeedRampUp.Value then
-                -- Gradually ramp speed
                 local rampAmount = RampSpeed.Value
                 if currentSpeedMultiplier < targetSpeed then
                     currentSpeedMultiplier = math.min(currentSpeedMultiplier + rampAmount, targetSpeed)
@@ -310,16 +359,13 @@ coroutine.wrap(function()
                 currentSpeedMultiplier = targetSpeed
             end
             
-            -- Apply speed using dx9 API
             local humanoid = GetLocalHumanoid()
             if humanoid then
                 pcall(function()
-                    -- Try to set WalkSpeed property
                     dx9.SetProperty(humanoid, "WalkSpeed", normalSpeed * currentSpeedMultiplier)
                 end)
             end
         else
-            -- Reset speed
             currentSpeedMultiplier = 1
             local humanoid = GetLocalHumanoid()
             if humanoid then
