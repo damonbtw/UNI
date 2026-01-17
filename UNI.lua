@@ -75,26 +75,37 @@ function GetDistanceFromPlayer(v)
     return math.floor(math.sqrt(a) + 0.5)
 end
 
---// Get skeleton joints
-function GetSkeletonJoints(character)
-    local joints = {}
-    
-    -- R15 skeleton connections
+--// Draw skeleton - improved with both R6 and R15 support
+function DrawSkeleton(character, color)
+    -- Try R15 first (more common now)
     local connections = {
+        -- Head to torso
         {"Head", "UpperTorso"},
+        -- Spine
         {"UpperTorso", "LowerTorso"},
+        -- Left arm
         {"UpperTorso", "LeftUpperArm"},
         {"LeftUpperArm", "LeftLowerArm"},
         {"LeftLowerArm", "LeftHand"},
+        -- Right arm
         {"UpperTorso", "RightUpperArm"},
         {"RightUpperArm", "RightLowerArm"},
         {"RightLowerArm", "RightHand"},
+        -- Left leg
         {"LowerTorso", "LeftUpperLeg"},
         {"LeftUpperLeg", "LeftLowerLeg"},
         {"LeftLowerLeg", "LeftFoot"},
+        -- Right leg
         {"LowerTorso", "RightUpperLeg"},
         {"RightUpperLeg", "RightLowerLeg"},
-        {"RightLowerLeg", "RightFoot"}
+        {"RightLowerLeg", "RightFoot"},
+        
+        -- R6 fallback
+        {"Head", "Torso"},
+        {"Torso", "Left Arm"},
+        {"Torso", "Right Arm"},
+        {"Torso", "Left Leg"},
+        {"Torso", "Right Leg"}
     }
     
     for _, connection in ipairs(connections) do
@@ -106,27 +117,13 @@ function GetSkeletonJoints(character)
             local pos2 = dx9.GetPosition(part2)
             
             if pos1 and pos2 then
-                table.insert(joints, {pos1, pos2})
+                local screen1 = dx9.WorldToScreen({pos1.x, pos1.y, pos1.z})
+                local screen2 = dx9.WorldToScreen({pos2.x, pos2.y, pos2.z})
+                
+                if screen1 and screen2 and screen1.x > 0 and screen1.y > 0 and screen2.x > 0 and screen2.y > 0 then
+                    dx9.DrawLine({screen1.x, screen1.y}, {screen2.x, screen2.y}, color)
+                end
             end
-        end
-    end
-    
-    return joints
-end
-
---// Draw skeleton
-function DrawSkeleton(character, color)
-    local joints = GetSkeletonJoints(character)
-    
-    for _, joint in ipairs(joints) do
-        local pos1 = joint[1]
-        local pos2 = joint[2]
-        
-        local screen1 = dx9.WorldToScreen({pos1.x, pos1.y, pos1.z})
-        local screen2 = dx9.WorldToScreen({pos2.x, pos2.y, pos2.z})
-        
-        if screen1 and screen2 and screen1.x > 0 and screen1.y > 0 and screen2.x > 0 and screen2.y > 0 then
-            dx9.DrawLine({screen1.x, screen1.y}, {screen2.x, screen2.y}, color, 2)
         end
     end
 end
@@ -157,7 +154,7 @@ function BoxESP(params)
     local height = Bottom.y - Top.y
     local width = height / 2.4
 
-    -- Skeleton ESP
+    -- Skeleton ESP (draw first so it's behind everything)
     if skeletonEnabled.Value then
         DrawSkeleton(target, box_color)
     end
@@ -208,40 +205,31 @@ function BoxESP(params)
         dx9.DrawString({Top.x - (dx9.CalcTextWidth(h_str) / 2), Top.y - 38}, box_color, h_str)
     end
 
-    -- Health Bar (FIXED - draws from bottom up)
+    -- Health Bar
     if healthbarEnabled.Value and maxhp > 0 then
         local barWidth = 4
         local barPadding = 2
         local tl = {Top.x + width + barPadding, Top.y}
         local br = {Top.x + width + barPadding + barWidth, Bottom.y}
         
-        -- Calculate health percentage
         local healthPercent = math.max(0, math.min(1, hp / maxhp))
         
-        -- Determine fill color
         local fill_color
         if dynamicHealthColor.Value then
-            -- Dynamic: Red (low HP) to Green (high HP)
             local red = math.floor(255 * (1 - healthPercent))
             local green = math.floor(255 * healthPercent)
             fill_color = {red, green, 0}
         else
-            -- Use ESP color
             fill_color = box_color
         end
         
-        -- Draw outline (white for visibility)
         dx9.DrawBox({tl[1] - 1, tl[2] - 1}, {br[1] + 1, br[2] + 1}, {255, 255, 255})
-        
-        -- Draw black background
         dx9.DrawFilledBox({tl[1], tl[2]}, {br[1], br[2]}, {0, 0, 0})
         
-        -- Calculate fill from bottom up
         local barHeight = br[2] - tl[2]
         local fillHeight = barHeight * healthPercent
         local fillTop = br[2] - fillHeight
         
-        -- Draw health fill (only if there's health)
         if fillHeight > 1 then
             dx9.DrawFilledBox({tl[1], fillTop}, {br[1], br[2]}, fill_color)
         end
