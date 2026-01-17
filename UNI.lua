@@ -75,6 +75,8 @@ end
 --// BoxESP
 function BoxESP(params)
     local target = params.Target
+    
+    -- Get color from picker (access .Value each time)
     local box_color = colorPicker.Value
 
     if type(target) ~= "number" or dx9.GetChildren(target) == nil then return end
@@ -137,24 +139,41 @@ function BoxESP(params)
             dx9.DrawString({Top.x - (dx9.CalcTextWidth(h_str) / 2), Top.y - 38}, box_color, h_str)
         end
 
-        -- Health Bar
+        -- Health Bar (RIGHT SIDE, VERTICAL)
         if healthbarEnabled.Value then
             local tl = {Top.x + width + 2, Top.y + 1}
             local br = {Top.x + width + 6, Bottom.y - 1}
 
+            -- Outline (using ESP color)
             dx9.DrawBox({tl[1] - 1, tl[2] - 1}, {br[1] + 1, br[2] + 1}, box_color)
-            dx9.DrawFilledBox({tl[1], tl[2]}, {br[1], br[2]}, {0,0,0})
+            
+            -- Black background
+            dx9.DrawFilledBox({tl[1], tl[2]}, {br[1], br[2]}, {0, 0, 0})
 
+            -- Health fill (from bottom to top based on percentage)
             if maxhp > 0 then
-                local healthPercent = math.clamp(hp / maxhp, 0, 1)
+                local healthPercent = math.max(0, math.min(1, hp / maxhp)) -- Clamp between 0-1
                 local fill_height = (br[2] - tl[2]) * healthPercent
                 local fill_top = br[2] - fill_height
 
-                local fill_color = dynamicHealthColor.Value and 
-                    {255 * (1 - healthPercent), 255 * healthPercent, 0} or 
-                    box_color
+                -- Determine fill color
+                local fill_color
+                if dynamicHealthColor.Value then
+                    -- Dynamic: Red (low HP) to Green (high HP)
+                    fill_color = {
+                        math.floor(255 * (1 - healthPercent)),  -- Red decreases as HP increases
+                        math.floor(255 * healthPercent),        -- Green increases as HP increases
+                        0
+                    }
+                else
+                    -- Use ESP color
+                    fill_color = box_color
+                end
 
-                dx9.DrawFilledBox({tl[1] + 1, fill_top}, {br[1] - 1, br[2]}, fill_color)
+                -- Draw the filled bar (only if there's health)
+                if fill_height > 0 then
+                    dx9.DrawFilledBox({tl[1] + 1, fill_top}, {br[1] - 1, br[2]}, fill_color)
+                end
             end
         end
     end
